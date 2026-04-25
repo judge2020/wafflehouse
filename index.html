@@ -49,16 +49,16 @@ const STORES = [{"c":"1149","n":"ACWORTH","a":"3275 COBB PKWY","p":"30101","la":
 
 // Top 4 non-overlapping clusters at each radius (greedy disc removal)
 const CLUSTERS_5MI = [
-  {lat:33.4680, lng:-82.0769, count:14, city:"Augusta",      store:"361"},
-  {lat:33.8413, lng:-84.3140, count:13, city:"Atlanta",      store:"489"},
-  {lat:33.6058, lng:-84.4351, count:13, city:"College Park", store:"1932"},
-  {lat:33.9538, lng:-84.1414, count:13, city:"Duluth",       store:"845"},
+  {lat:33.4680, lng:-82.0769, count:14, city:"Augusta",            store:"361"},
+  {lat:33.8413, lng:-84.3140, count:13, city:"Atlanta (Druid Hills)", store:"489"},
+  {lat:33.6058, lng:-84.4351, count:13, city:"College Park",       store:"1932"},
+  {lat:33.9538, lng:-84.1414, count:13, city:"Duluth",             store:"845"},
 ];
 const CLUSTERS_10MI = [
-  {lat:33.8802, lng:-84.2740, count:42, city:"Atlanta",   store:"2182"},
-  {lat:33.9472, lng:-84.6239, count:34, city:"Marietta",  store:"1132"},
-  {lat:33.6122, lng:-84.3004, count:30, city:"Ellenwood", store:"1670"},
-  {lat:34.0618, lng:-84.0762, count:24, city:"Suwanee",   store:"1215"},
+  {lat:33.8802, lng:-84.2740, count:42, city:"Atlanta (Chamblee)", store:"2182"},
+  {lat:33.9472, lng:-84.6239, count:34, city:"Marietta",           store:"1132"},
+  {lat:33.6122, lng:-84.3004, count:30, city:"Ellenwood",          store:"1670"},
+  {lat:34.0618, lng:-84.0762, count:24, city:"Suwanee",            store:"1215"},
 ];
 // Atlanta metro overview (40mi from downtown)
 const ATL_METRO = {lat:33.7490, lng:-84.3880, r:40, count:244, city:"Atlanta metro"};
@@ -89,14 +89,14 @@ const HOVER_STYLE = { weight: 4, fillOpacity: .25 };
 function makeCircle(c, miles, color, rank) {
   const anchor = c.store ? ` (anchor #${c.store})` : '';
   const title = `<b style="color:${color}">${c.city}</b> — ${c.count} stores in ${miles}mi${anchor}`;
-  const circle = L.circle([c.lat, c.lng], { ...BASE_STYLE, color }).addTo(map);
+  const circle = L.circle([c.lat, c.lng], { ...BASE_STYLE, color, bubblingMouseEvents: false }).addTo(map);
   circle.bindTooltip(title, { sticky: true, direction: 'top', className: 'circle-tip' });
-  circle.bindPopup(title);
-  // store extras for cross-highlighting
   circle._meta = { color, miles, rank, city: c.city };
   circle.setRadius(miles * MILES_TO_M);
   circle.on('mouseover', () => circle.setStyle(HOVER_STYLE));
   circle.on('mouseout',  () => circle.setStyle(BASE_STYLE));
+  // swallow clicks (no popup, but don't propagate to map either — feels cleaner)
+  circle.on('click', () => {});
   return circle;
 }
 
@@ -105,6 +105,8 @@ const metroCircle = makeCircle(ATL_METRO, ATL_METRO.r, COLOR_METRO, 0);
 const circles10 = CLUSTERS_10MI.map((c, i) => makeCircle(c, 10, COLOR_10, i+1));
 const circles5  = CLUSTERS_5MI.map((c, i)  => makeCircle(c, 5,  COLOR_5,  i+1));
 [metroCircle, ...circles10, ...circles5].forEach(c => c.bringToFront());
+// Pins on top of everything so individual stores stay clickable inside circles
+allPins.eachLayer(p => p.bringToFront());
 
 const allBounds = L.latLngBounds(STORES.map(s => [s.la, s.lo]));
 // "Fit top clusters" = the two #1 winners (Augusta 5mi + Atlanta 10mi)

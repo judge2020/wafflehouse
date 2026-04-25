@@ -100,9 +100,11 @@ function makeCircle(c, miles, color, rank) {
   return circle;
 }
 
-const circles5  = CLUSTERS_5MI.map((c, i)  => makeCircle(c, 5,  COLOR_5,  i+1));
-const circles10 = CLUSTERS_10MI.map((c, i) => makeCircle(c, 10, COLOR_10, i+1));
+// Order: largest first so smaller circles draw on top and win hover hit-tests
 const metroCircle = makeCircle(ATL_METRO, ATL_METRO.r, COLOR_METRO, 0);
+const circles10 = CLUSTERS_10MI.map((c, i) => makeCircle(c, 10, COLOR_10, i+1));
+const circles5  = CLUSTERS_5MI.map((c, i)  => makeCircle(c, 5,  COLOR_5,  i+1));
+[metroCircle, ...circles10, ...circles5].forEach(c => c.bringToFront());
 
 const allBounds = L.latLngBounds(STORES.map(s => [s.la, s.lo]));
 // "Fit top clusters" = the two #1 winners (Augusta 5mi + Atlanta 10mi)
@@ -164,6 +166,10 @@ legend.onAdd = () => {
 legend.addTo(map);
 
 map.fitBounds(topBothBounds, {padding:[40,40]});
+window.__map = map;
+window.__circles5 = circles5;
+window.__circles10 = circles10;
+window.__metroCircle = metroCircle;
 </script>
 </body>
 </html>

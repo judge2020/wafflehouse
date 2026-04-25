@@ -167,7 +167,30 @@ legend.onAdd = () => {
 };
 legend.addTo(map);
 
-map.fitBounds(topBothBounds, {padding:[40,40]});
+// Restore view from ?lat&lng&z, else fit top clusters
+const params = new URLSearchParams(location.search);
+const qLat = parseFloat(params.get('lat'));
+const qLng = parseFloat(params.get('lng'));
+const qZ   = parseInt(params.get('z'), 10);
+if (Number.isFinite(qLat) && Number.isFinite(qLng) && Number.isFinite(qZ)) {
+  map.setView([qLat, qLng], qZ);
+} else {
+  map.fitBounds(topBothBounds, {padding:[40,40]});
+}
+
+let urlTimer = null;
+map.on('moveend zoomend', () => {
+  clearTimeout(urlTimer);
+  urlTimer = setTimeout(() => {
+    const c = map.getCenter();
+    const u = new URL(location.href);
+    u.searchParams.set('lat', c.lat.toFixed(5));
+    u.searchParams.set('lng', c.lng.toFixed(5));
+    u.searchParams.set('z',   String(map.getZoom()));
+    history.replaceState(null, '', u);
+  }, 250);
+});
+
 window.__map = map;
 window.__circles5 = circles5;
 window.__circles10 = circles10;

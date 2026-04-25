@@ -25,6 +25,7 @@
   .legend .sw{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;border-radius:50%}
   .pin-popup b{display:block;margin-bottom:2px}
   .pin-popup small{color:#666}
+  .leaflet-tooltip.circle-tip{font-size:13px;padding:6px 10px;border-radius:4px;border:0;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 </style>
 </head>
 <body>
@@ -82,16 +83,26 @@ const COLOR_5  = '#06f';
 const COLOR_10 = '#093';
 const COLOR_METRO = '#a0a';
 
-function makeCircle(c, miles, color) {
-  return L.circle([c.lat, c.lng], {
-    radius: miles * MILES_TO_M,
-    color, weight: 2, fillOpacity: .08
-  }).bindPopup(`${c.city} — ${c.count} stores in ${miles}mi (anchor #${c.store || '—'})`).addTo(map);
+const BASE_STYLE = { weight: 2, fillOpacity: .08 };
+const HOVER_STYLE = { weight: 4, fillOpacity: .25 };
+
+function makeCircle(c, miles, color, rank) {
+  const anchor = c.store ? ` (anchor #${c.store})` : '';
+  const title = `<b style="color:${color}">${c.city}</b> — ${c.count} stores in ${miles}mi${anchor}`;
+  const circle = L.circle([c.lat, c.lng], { ...BASE_STYLE, color }).addTo(map);
+  circle.bindTooltip(title, { sticky: true, direction: 'top', className: 'circle-tip' });
+  circle.bindPopup(title);
+  // store extras for cross-highlighting
+  circle._meta = { color, miles, rank, city: c.city };
+  circle.setRadius(miles * MILES_TO_M);
+  circle.on('mouseover', () => circle.setStyle(HOVER_STYLE));
+  circle.on('mouseout',  () => circle.setStyle(BASE_STYLE));
+  return circle;
 }
 
-const circles5  = CLUSTERS_5MI.map(c => makeCircle(c, 5, COLOR_5));
-const circles10 = CLUSTERS_10MI.map(c => makeCircle(c, 10, COLOR_10));
-const metroCircle = makeCircle(ATL_METRO, ATL_METRO.r, COLOR_METRO);
+const circles5  = CLUSTERS_5MI.map((c, i)  => makeCircle(c, 5,  COLOR_5,  i+1));
+const circles10 = CLUSTERS_10MI.map((c, i) => makeCircle(c, 10, COLOR_10, i+1));
+const metroCircle = makeCircle(ATL_METRO, ATL_METRO.r, COLOR_METRO, 0);
 
 const allBounds = L.latLngBounds(STORES.map(s => [s.la, s.lo]));
 // "Fit top clusters" = the two #1 winners (Augusta 5mi + Atlanta 10mi)
@@ -101,29 +112,42 @@ const topBothBounds = L.latLngBounds([
 ]);
 
 function zoomTo(layer) { map.fitBounds(layer.getBounds(), {padding:[40,40]}); }
+
+// Hover sync: button → highlight matching circle + show tooltip at center
+function bindHover(btn, circle) {
+  btn.addEventListener('mouseenter', () => {
+    circle.setStyle(HOVER_STYLE);
+    circle.openTooltip(circle.getLatLng());
+  });
+  btn.addEventListener('mouseleave', () => {
+    circle.setStyle(BASE_STYLE);
+    circle.closeTooltip();
+  });
+}
+
 document.getElementById('btn-fit').onclick = () => map.fitBounds(topBothBounds, {padding:[40,40]});
 document.getElementById('btn-all').onclick = () => map.fitBounds(allBounds, {padding:[20,20]});
 
-const wrap5 = document.getElementById('btns-5mi');
-CLUSTERS_5MI.forEach((c, i) => {
+function makeBtn(wrap, cls, label, circle) {
   const b = document.createElement('button');
-  b.className = 'c5';
-  b.textContent = `#${i+1} ${c.city} (${c.count})`;
-  b.onclick = () => zoomTo(circles5[i]);
-  wrap5.appendChild(b);
-});
+  b.className = cls;
+  b.textContent = label;
+  b.onclick = () => zoomTo(circle);
+  bindHover(b, circle);
+  wrap.appendChild(b);
+  return b;
+}
+
+const wrap5  = document.getElementById('btns-5mi');
 const wrap10 = document.getElementById('btns-10mi');
-CLUSTERS_10MI.forEach((c, i) => {
-  const b = document.createElement('button');
-  b.className = 'c10';
-  b.textContent = `#${i+1} ${c.city} (${c.count})`;
-  b.onclick = () => zoomTo(circles10[i]);
-  wrap10.appendChild(b);
-});
+CLUSTERS_5MI.forEach((c,i)  => makeBtn(wrap5,  'c5',  `#${i+1} ${c.city} (${c.count})`, circles5[i]));
+CLUSTERS_10MI.forEach((c,i) => makeBtn(wrap10, 'c10', `#${i+1} ${c.city} (${c.count})`, circles10[i]));
+
 const metroBtn = document.createElement('button');
 metroBtn.textContent = `All Atlanta metro (40mi · ${ATL_METRO.count})`;
 metroBtn.style.background = '#e9b8ee';
 metroBtn.onclick = () => zoomTo(metroCircle);
+bindHover(metroBtn, metroCircle);
 document.querySelector('header').insertBefore(metroBtn, document.querySelector('header .meta'));
 
 const legend = L.control({position:'bottomright'});
